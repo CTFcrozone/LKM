@@ -36,12 +36,11 @@ static int __init lkm_init(void) {
     if (ret < 0) {
         printk(KERN_INFO "socket_init failed\n");
     }
-    /*
     char buff[60];
     ret = tcp_recv(sock, buff, sizeof(buff));
     if(ret < 0){
         printk(KERN_INFO "tcp_recv failed\n");
-    }*/
+    }
 
     return 0;
 }

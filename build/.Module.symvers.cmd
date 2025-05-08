@@ -1,0 +1,1 @@
+savedcmd_/home/pc/Desktop/Arek/ProgrammingProjects/RKE/LKM/src/../src/Module.symvers :=  scripts/mod/modpost -M -m -a      -o /home/pc/Desktop/Arek/ProgrammingProjects/RKE/LKM/src/../src/Module.symvers -T /home/pc/Desktop/Arek/ProgrammingProjects/RKE/LKM/src/../src/modules.order -i Module.symvers -e 
