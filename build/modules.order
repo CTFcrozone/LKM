@@ -1,1 +1,1 @@
-/home/pc/Desktop/Arek/ProgrammingProjects/RKE/LKM/src/../src/lkm.o
+/home/pc/Desktop/LKM/src/../src/lkm.o

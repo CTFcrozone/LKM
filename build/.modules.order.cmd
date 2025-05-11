@@ -1,1 +1,1 @@
-savedcmd_/home/pc/Desktop/Arek/ProgrammingProjects/RKE/LKM/src/../src/modules.order := {   echo /home/pc/Desktop/Arek/ProgrammingProjects/RKE/LKM/src/../src/lkm.o; :; } > /home/pc/Desktop/Arek/ProgrammingProjects/RKE/LKM/src/../src/modules.order
+savedcmd_/home/pc/Desktop/LKM/src/../src/modules.order := {   echo /home/pc/Desktop/LKM/src/../src/lkm.o; :; } > /home/pc/Desktop/LKM/src/../src/modules.order

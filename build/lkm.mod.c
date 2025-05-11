@@ -20,20 +20,13 @@ static const struct modversion_info ____versions[]
 __used __section("__versions") = {
 	{ 0xe04387bd, "prepare_creds" },
 	{ 0x122d1043, "commit_creds" },
-	{ 0x3f66a26e, "register_kprobe" },
-	{ 0xbb10e61d, "unregister_kprobe" },
-	{ 0x362f9a8, "__x86_indirect_thunk_r12" },
-	{ 0x5cb9bbc, "ftrace_set_filter_ip" },
-	{ 0x6b378edc, "register_ftrace_function" },
-	{ 0x8aa23021, "unregister_ftrace_function" },
-	{ 0xec859d50, "kthread_stop" },
-	{ 0x42d0d5a, "sock_release" },
 	{ 0xa7eedcc4, "call_usermodehelper" },
 	{ 0xf0fdf6cb, "__stack_chk_fail" },
 	{ 0x2d353450, "init_net" },
 	{ 0x7b4d8539, "sock_create_kern" },
 	{ 0xdf537e48, "kthread_create_on_node" },
 	{ 0x6d615166, "wake_up_process" },
+	{ 0x42d0d5a, "sock_release" },
 	{ 0xf9a482f9, "msleep" },
 	{ 0x618077d3, "kernel_sendmsg" },
 	{ 0xa962af3f, "kernel_recvmsg" },
@@ -43,6 +36,13 @@ __used __section("__versions") = {
 	{ 0xb3f7646e, "kthread_should_stop" },
 	{ 0x5a921311, "strncmp" },
 	{ 0x37a0cba, "kfree" },
+	{ 0x3f66a26e, "register_kprobe" },
+	{ 0xbb10e61d, "unregister_kprobe" },
+	{ 0x362f9a8, "__x86_indirect_thunk_r12" },
+	{ 0x5cb9bbc, "ftrace_set_filter_ip" },
+	{ 0x6b378edc, "register_ftrace_function" },
+	{ 0x8aa23021, "unregister_ftrace_function" },
+	{ 0xec859d50, "kthread_stop" },
 	{ 0xbdfb6dbb, "__fentry__" },
 	{ 0x65487097, "__x86_indirect_thunk_rax" },
 	{ 0x5b8239ca, "__x86_return_thunk" },
@@ -54,4 +54,4 @@ __used __section("__versions") = {
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "4E93ED60B1445F3F3C91EC5");
+MODULE_INFO(srcversion, "0B529F86733CF5841DFC7CB");

