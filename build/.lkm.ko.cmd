@@ -1,1 +1,0 @@
-savedcmd_/home/pc/Desktop/LKM/src/../src/lkm.ko := ld -r -m elf_x86_64 -z noexecstack --build-id=sha1  -T scripts/module.lds -o /home/pc/Desktop/LKM/src/../src/lkm.ko /home/pc/Desktop/LKM/src/../src/lkm.o /home/pc/Desktop/LKM/src/../src/lkm.mod.o /home/pc/Desktop/LKM/src/../src/.module-common.o
