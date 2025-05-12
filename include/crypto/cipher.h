@@ -5,11 +5,16 @@
 #include <linux/scatterlist.h>
 #include <linux/version.h>
 
-#define AES_KEY_SIZE 16
-#define AES_TAG_SIZE 16
+#define AES_GCM_TAG_SIZE 16
+#define AES_GCM_IV_SIZE 12
+#define AES_GCM_KEY_SIZE 32
 #define CRYPTO_ALG "gcm(aes)"
 
-static struct crypto_aead *gcm_tfm;
+struct aes_gcm_ctx {
+  struct crypto_aead *tfm;
+  u8 iv[AES_GCM_IV_SIZE];
+  u8 key[AES_GCM_KEY_SIZE];
+};
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 18)
 
@@ -49,60 +54,114 @@ static inline int crypto_wait_req(int err, struct crypto_wait *wait) {
 
 #endif
 
-void cleanup(struct crypto_aead *tfm, struct aead_request *aead_req,
-             u8 *buffer) {
-  if (aead_req) {
-    aead_request_free(aead_req);
-    printk(KERN_INFO "Cleaned up AEAD request\n");
-  }
+static void cleanup_crypto_ctx(struct aes_gcm_ctx *ctx) {
+  if (!ctx)
+    return;
 
-  if (tfm) {
-    crypto_free_aead(tfm);
-    printk(KERN_INFO "Cleaned up AEAD transform\n");
-  }
+  if (ctx->tfm)
+    crypto_free_aead(ctx->tfm);
 
-  if (buffer) {
-    kfree(buffer);
-    printk(KERN_INFO "Cleaned up buffer\n");
-  }
+  kfree(ctx);
 }
 
-// maybe some better KDF but works anyways
-void gen_key(u8 *buf) { get_random_bytes(buf, sizeof(buf)); }
+void gen_key(u8 *buf, size_t len) { get_random_bytes(buf, len); }
 
-int aes_gcm_crypto_init(struct crypto_aead **gcm_tfm) {
+static int init_ctx(struct aes_gcm_ctx *ctx) {
+  int err = 0;
+  ctx->tfm = crypto_alloc_aead(CRYPTO_ALG, 0, 0);
+  if (IS_ERR(ctx->tfm)) {
+    err = PTR_ERR(ctx->tfm);
+    printk("crypto_alloc_aead() failed: %d\n", err);
+    return err;
+  }
+
+  err = crypto_aead_setauthsize(ctx->tfm, AES_GCM_TAG_SIZE);
+  if (err) {
+    printk("crypto_aead_setauthsize() failed: %d\n", err);
+    goto error;
+  }
+
+  get_random_bytes(ctx->key, sizeof(ctx->key));
+  err = crypto_aead_setkey(ctx->tfm, ctx->key, sizeof(ctx->key));
+  if (err) {
+    pr_err("crypto_aead_setkey() failed: %d\n", err);
+    goto error;
+  }
+  get_random_bytes(ctx->iv, sizeof(ctx->iv));
+  return 0;
+error:
+  crypto_free_aead(ctx->tfm);
+  return err;
+}
+
+int encrypt(struct aes_gcm_ctx *ctx, u8 *plaintext, u8 *ciphertext,
+            size_t len) {
+  struct aead_request *req = NULL;
+  struct scatterlist sg_in, sg_out;
   DECLARE_CRYPTO_WAIT(wait);
+  int err = 0;
 
-  // u8 iv[12] = {0};
-  u8 key[32] = {0};
-
-  int err = -1;
-
-  *gcm_tfm = crypto_alloc_aead("gcm(aes)", 0, 0);
-  if (IS_ERR(*gcm_tfm)) {
-    printk(KERN_ERR "AES_GCM: Failed to allocate TFM\n");
-    crypto_free_aead(*gcm_tfm);
-    return PTR_ERR(*gcm_tfm);
+  req = aead_request_alloc(ctx->tfm, GFP_KERNEL);
+  if (req == NULL) {
+    pr_err(KERN_ERR "aead_request_alloc() has failed.\n");
+    return -ENOMEM;
   }
 
-  err = crypto_aead_setauthsize(*gcm_tfm, AES_TAG_SIZE);
+  sg_init_one(&sg_in, plaintext, len);
+  sg_init_one(&sg_out, ciphertext, len + AES_GCM_TAG_SIZE);
 
+  aead_request_set_callback(
+      req, CRYPTO_TFM_REQ_MAY_BACKLOG | CRYPTO_TFM_REQ_MAY_SLEEP,
+      crypto_req_done, &wait);
+
+  aead_request_set_crypt(req, &sg_in, &sg_out, len, ctx->iv);
+  req->assoclen = 0;
+
+  err = crypto_wait_req(crypto_aead_encrypt(req), &wait);
   if (err != 0) {
-    printk(KERN_ERR "AES_GCM: Failed to set authsize\n");
-    crypto_free_aead(*gcm_tfm);
-    return err;
-  }
-
-  gen_key(key);
-
-  err = crypto_aead_setkey(*gcm_tfm, key, sizeof(key));
-  if (err != 0) {
-    printk(KERN_ERR "AES_GCM: Failed to set the key\n");
-    crypto_free_aead(*gcm_tfm);
-    return err;
+    pr_err(KERN_ERR "crypto_wait_req() error when encrypting data\n");
+    goto out;
   }
 
   return 0;
+
+out:
+  aead_request_free(req);
+  return err;
 }
 
-// void crypt(...){}
+int decrypt(struct aes_gcm_ctx *ctx, u8 *plaintext, u8 *ciphertext,
+            size_t len) {
+  struct aead_request *req = NULL;
+  struct scatterlist sg_in, sg_out;
+  DECLARE_CRYPTO_WAIT(wait);
+  int err = 0;
+
+  req = aead_request_alloc(ctx->tfm, GFP_KERNEL);
+  if (req == NULL) {
+    pr_err(KERN_ERR "aead_request_alloc() has failed.\n");
+    return -ENOMEM;
+  }
+
+  sg_init_one(&sg_in, ciphertext, len);
+  sg_init_one(&sg_out, plaintext, len - AES_GCM_TAG_SIZE);
+
+  aead_request_set_callback(
+      req, CRYPTO_TFM_REQ_MAY_BACKLOG | CRYPTO_TFM_REQ_MAY_SLEEP,
+      crypto_req_done, &wait);
+
+  aead_request_set_crypt(req, &sg_in, &sg_out, len, ctx->iv);
+  req->assoclen = 0;
+
+  err = crypto_wait_req(crypto_aead_decrypt(req), &wait);
+  if (err != 0) {
+    pr_err(KERN_ERR "crypto_wait_req() error when decrypting data\n");
+    goto out;
+  }
+
+  return 0;
+
+out:
+  aead_request_free(req);
+  return err;
+}
