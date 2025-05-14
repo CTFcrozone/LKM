@@ -53,7 +53,7 @@ static int __init lkm_init(void) {
     return ret;
   }
 
-  u8 plaintext[] = "Hello from kernel AES-GCM!";
+  u8 plaintext[] = "ebe ebe";
   u8 ciphertext[128] = {0};
   u8 decrypted[128] = {0};
   size_t len = strlen(plaintext);
@@ -74,7 +74,7 @@ static int __init lkm_init(void) {
     goto cleanup;
   }
 
-  printk("Decrypted: %s", decrypted);
+  printk("Decrypted: %s\n", decrypted);
 
   // ret = fh_install_hooks(hooks, ARRAY_SIZE(hooks));
   // if (ret)
@@ -86,7 +86,6 @@ static int __init lkm_init(void) {
   //   return ret;
   // }
 
-  cleanup_crypto_ctx(ctx);
   return 0;
 cleanup:
   cleanup_crypto_ctx(ctx);
