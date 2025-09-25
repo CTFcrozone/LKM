@@ -20,7 +20,7 @@ struct socket *sock = NULL;
 struct task_struct *thread = NULL;
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("voidbyte, oromos");
+MODULE_AUTHOR("Nexriel, X");
 MODULE_DESCRIPTION("LKM System module");
 
 static struct ftrace_hook hooks[] = {
