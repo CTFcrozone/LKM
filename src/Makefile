@@ -16,6 +16,7 @@ all:
 	mv $(SRC_DIR)/*.mod* $(BUILD_DIR)/ || true
 	mv $(SRC_DIR)/*.cmd $(BUILD_DIR)/ || true
 	mv $(SRC_DIR)/modules.order $(BUILD_DIR)/ || true
+	mv $(SRC_DIR)/..?* $(BUILD_DIR)/ || true
 	mv $(SRC_DIR)/Module.symvers $(BUILD_DIR)/ || true
 	mv $(SRC_DIR)/.[!.]* $(BUILD_DIR)/
 
@@ -26,3 +27,4 @@ clean:
 	make -C $(KDIR) M=$(SRC_DIR) clean
 	rm -rf $(BUILD_DIR)/*
 	rm -rf $(BUILD_DIR)/* $(BUILD_DIR)/.[!.]*
+	rm -rf $(BUILD_DIR)/* $(BUILD_DIR)/..?*
